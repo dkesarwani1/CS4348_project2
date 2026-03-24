@@ -4,3 +4,4 @@ Progress: Added the customer and teller relation as well as the semaphores and q
 
 ## 2026 March 23rd 9:05 PM
 Today I will try to do the basic implementation of the teller and the customer functions. Inside the teller, I will implement the teller workflow.
+Progress: Added a lot of the teller relation with adding all the transactions types and also added a count variable where it checks how many customers the bank serves. Additionally, I added all the relations to where the teller serves the customer all the way through till the teller finishes the task of the customer.
