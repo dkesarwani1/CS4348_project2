@@ -18,18 +18,29 @@ mutex servedlock; // mutex to protect access to the served customers count
 int servedCustomers = 0; // count of customers served
 queue <int> customerQueue; // queue to hold waiting customers
 mutex queueMutex; // mutex to protect access to the customer queue
+vector<binary_semaphore*> customerDone(50); // per-customer semaphore to signal when teller is done serving them
 void customer(int id)
 {
     // Simulate customer arrival time
     this_thread::sleep_for(chrono::milliseconds(rand() % 1000));
     cout << "Customer " << id << " has arrived." << endl;
-    // Simulate service time
-    this_thread::sleep_for(chrono::milliseconds(rand() % 2000));
-    cout << "Customer " << id << " has been served." << endl;
 
+    door.acquire(); // enter the bank (max 2 at a time)
+    cout << "Customer " << id << " has entered the bank." << endl;
+
+    {
+        lock_guard<mutex> lock(queueMutex);
+        customerQueue.push(id); // join the queue
+    }
+    customerready.release(); // signal a teller that a customer is ready
+
+    customerDone[id]->acquire(); // wait until teller finishes serving me
+
+    cout << "Customer " << id << " is leaving the bank." << endl;
+    door.release(); // exit the bank
 }
 void teller(int id)
-{    
+{
     while (true) {
         // Simulate teller availability
         cout<< "Teller " << id << " is ready to serve." << endl;
@@ -71,37 +82,46 @@ void teller(int id)
         cout<<"Teller "<<id<< " has finished at the safe with Customer "<<customerId<<" for "<<transactiontype<<"."<<endl;
         safe.release();
         cout <<"Teller " << id << " has completed the transaction for customer " << customerId << "." << endl;
-        
+
+        customerDone[customerId]->release(); // signal the customer that they have been served
+
         {
             lock_guard<mutex> lock(servedlock);
             servedCustomers++;
-            if(servedCustomers == 50) 
+            if(servedCustomers == 50)
             {
                 cout << "All customers have been served. Teller " << id << " is closing." << endl;
                 break; // Exit the loop if all customers have been served
             }
         }
-        
+
     }
 
 }
-int main() 
+int main()
 {
-    vector <thread> tellers,customers;
+    // Initialize per-customer semaphores
+    for(int i = 0; i < 50; i++)
+        customerDone[i] = new binary_semaphore(0);
+
+    vector <thread> tellers, customers;
     for(int i=0;i<3;i++)
     {
         thread t(teller,i);
-        teller.push_back(std::move(t));
-    
-    
-    } 
+        tellers.push_back(std::move(t));
+    }
     for(int x=0;x<50;x++)
     {
         thread c(customer,x);
-        
-            customers.push_back(std::move(c));
-        
-        
+        customers.push_back(std::move(c));
     }
+
+    for(auto& t : tellers) t.join();
+    for(auto& c : customers) c.join();
+
+    // Cleanup
+    for(int i = 0; i < 50; i++)
+        delete customerDone[i];
+
     return 0;
 }
