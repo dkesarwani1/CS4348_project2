@@ -13,3 +13,10 @@ Next Steps:
 - Implement customer function funtion where it acquire door, push to queue, signal customerready, wait on customerDone[id], release door.
 - In teller function, after safe transaction completes, signal customerDone[customerId] to let the customer leave.
 - Fix the main function so it can initialize customerDone semaphores, fix tellers.push_back() typo, and join all threads before returning.
+
+## 2026 March 30th
+- Added vector of per-customer binary semaphores (customerDone) initialized in main.
+- Implemented customer function: acquires door, pushes to queue, signals customerready, waits on customerDone[id], releases door.
+- Teller signals customerDone[customerId] after safe transaction completes.
+- Fixed main: semaphores initialized, tellers.push_back() typo fixed, all threads joined before return with cleanup of allocated semaphores.
+Progress: Implementation is complete. Next step is testing and verification.
