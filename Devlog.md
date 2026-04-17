@@ -45,7 +45,7 @@ Progress: Implementation is complete. Next step is testing and verification.
 
 Things Noticed: There were issues with the original output in that two threads were writing to cout at the same time which caused major issues and I had to just fixed it to by adding coutMutex so only a single thread can write to cout one at a time. Then ensures more consistency within the output. Another thing is I Improved the labeling of the tellers from 0-2 to 1-3 for consistency.
 
-## 2026 April 17th 12:10PM
+## 2026 April 17th 12:10AM
 Went back over the code I thought I finished before submitting and found the code had drifted from the assignment in several places. It ran without deadlocking, which is why I missed these earlier.
 Issues found:
 
@@ -58,3 +58,27 @@ Teller IDs were 1–3 but customers were 0–49; spec example uses Teller 0.
 "Ready to serve" printed on every loop iteration instead of once at startup.
 Used rand() across threads (not thread-safe).
 Shutdown released customerready twice without a clean chain — off-by-one risk.
+
+## 2026 April 17th 12:50AM
+Fixes Made from before:
+- Bank-open barrier: Added a condition_variable called bankCV and a bankIsOpen flag. All customer threads now block on bankCV.wait() until all 3 tellers have called ready to serve and the count reaches 3. The last teller to become ready sets bankIsOpen = true and calls notify_all(), releasing all waiting customers simultaneously.
+
+- Customer decides transaction: Moved transaction type selection (Deposit or Withdrawal) to the very first line of the customer function, before the 0–100 ms wait. It is written into transactionType[id] and later read by the teller only after proper semaphore synchronization.
+
+- Full teller-customer handshake: Added three sets of per-teller binary_semaphore arrays — tellerAskSem, customerTellSem, and customerLeftSem. The teller now signals the customer to ask for the transaction, the customer responds with the type, and the teller waits for the customer to leave before looping back. Also added customerAssigned[id] per-customer semaphores so the customer knows which teller to interact with.
+
+- Output format: Rewrote all print statements to follow TYPE ID [TYPE ID]: MSG. Added helper functions logLine and logResource to keep formatting consistent across all log sites. Also added the additional required lines: performing transaction and transaction in safe complete inside the safe block, and waiting for manager approval and manager approval complete inside the manager block.
+
+- Timing: Fixed customer arrival to rand() % 101 (0–100 ms). Removed the two 2000 ms teller sleeps that were not in the spec.
+
+- Ready to serve placement: Moved the ready-to-serve print to once at the top of the teller function, before the loop, as the spec requires.
+
+- Shutdown: Fixed to release customerready exactly NUM_TELLERS - 1 times (2) so each remaining blocked teller gets exactly one wake-up signal and sees bankClosed = true.
+
+-Door logging: Added waiting to use door before door.acquire() and changed exit message to leaves bank, encapsulated in a passThroughDoor() helper used for both entry and exit.
+
+## Reflection
+
+The initial design got the semaphore structure right — door(2), manager(1), safe(2) — but the protocol was wrong. The teller owned the entire transaction when the spec clearly puts the customer in charge of deciding and communicating the transaction type. Fixing that required the full tellerAskSem/customerTellSem/customerLeftSem handshake and was the most significant change to the project.
+
+The main lesson was that "runs without deadlocking" isint the same as "follows the spec." I thought the program finished for weeks before a proper line-by-line analysis was done and I found multiple issues. Starting from the required output format and working backward to the semaphore design would have caught most of them on day one.
